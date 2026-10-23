@@ -22,12 +22,21 @@ jobs:
           xmake-version: latest
       - name: Pin mimalloc 2.2.4 for tiltedcore (mimalloc 3.x breaks linking, per ArchiveXL PR #31)
         shell: pwsh
-        run: Add-Content xmake.lua "`nadd_requireconfs(`"tiltedcore.mimalloc`", {version = `"2.2.4`", override = true})"
+        run: |
+          $pin = 'add_requireconfs("tiltedcore.mimalloc", {version = "2.2.4", override = true})'
+          $lines = Get-Content xmake.lua
+          $i = [array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -match '^add_requires\(' })
+          if ($i -lt 0) { throw "add_requires line not found" }
+          $out = $lines[0..$i] + $pin + $lines[($i+1)..($lines.Length-1)]
+          Set-Content xmake.lua $out
+          Select-String -Path xmake.lua -Pattern 'add_require'
       - name: Build release
         shell: pwsh
         run: |
           xmake f -m release -y
-          xmake -y
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          xmake -y -v
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Package (repo's own release script)
         shell: pwsh
         run: |
